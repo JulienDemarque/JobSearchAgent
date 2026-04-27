@@ -8,7 +8,7 @@ import { OpportunitiesTable } from "@/components/opportunities-table";
 import { AppQueryProvider } from "@/providers/query";
 import React, { useEffect, useState } from "react";
 
-const DEFAULT_TABLE_WIDTH = 42;
+const DEFAULT_TABLE_WIDTH = 60;
 const MIN_TABLE_WIDTH = 28;
 const MAX_TABLE_WIDTH = 65;
 

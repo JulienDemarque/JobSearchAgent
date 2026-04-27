@@ -9,10 +9,11 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -27,8 +28,6 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   }).format(new Date(value));
 }
 
@@ -50,6 +49,12 @@ function statusClassName(status: Opportunity["status"]) {
 
 export function OpportunitiesTable() {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [search, setSearch] = useState("");
+  const [appliedFilter, setAppliedFilter] = useState<"all" | "yes" | "no">(
+    "all",
+  );
+  const [minimumScore, setMinimumScore] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const opportunitiesQuery = useQuery({
     queryKey: ["opportunities"],
     queryFn: listOpportunities,
@@ -137,8 +142,37 @@ export function OpportunitiesTable() {
     [],
   );
 
+  const filteredOpportunities = useMemo(() => {
+    const normalizedSearch = deferredSearch.trim().toLowerCase();
+    const minimumScoreValue = minimumScore ? Number(minimumScore) : null;
+
+    return (opportunitiesQuery.data ?? []).filter((opportunity) => {
+      if (appliedFilter === "yes" && !opportunity.applied) return false;
+      if (appliedFilter === "no" && opportunity.applied) return false;
+      if (
+        minimumScoreValue !== null &&
+        Number.isFinite(minimumScoreValue) &&
+        (opportunity.score ?? -1) < minimumScoreValue
+      ) {
+        return false;
+      }
+
+      if (!normalizedSearch) return true;
+
+      return [
+        opportunity.title,
+        opportunity.company,
+        opportunity.location,
+        opportunity.url,
+        opportunity.status,
+      ]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(normalizedSearch));
+    });
+  }, [appliedFilter, deferredSearch, minimumScore, opportunitiesQuery.data]);
+
   const table = useReactTable({
-    data: opportunitiesQuery.data ?? [],
+    data: filteredOpportunities,
     columns,
     state: {
       sorting,
@@ -172,6 +206,34 @@ export function OpportunitiesTable() {
             />
             Refresh
           </Button>
+        </div>
+        <div className="grid gap-2 pt-3 md:grid-cols-[minmax(0,1fr)_120px_120px]">
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search roles, companies, locations..."
+            className="bg-background"
+          />
+          <select
+            value={appliedFilter}
+            onChange={(event) =>
+              setAppliedFilter(event.target.value as "all" | "yes" | "no")
+            }
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+          >
+            <option value="all">All applied</option>
+            <option value="yes">Applied</option>
+            <option value="no">Not applied</option>
+          </select>
+          <Input
+            type="number"
+            min={0}
+            max={25}
+            value={minimumScore}
+            onChange={(event) => setMinimumScore(event.target.value)}
+            placeholder="Min score"
+            className="bg-background"
+          />
         </div>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-auto p-0">

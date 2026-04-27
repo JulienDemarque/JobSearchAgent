@@ -6,8 +6,10 @@ readme = { text = "JobSearchAgent backend package.", content-type = "text/markdo
 requires-python = ">=3.11"
 dependencies = [
     "alembic",
+    "beautifulsoup4>=4.14.3",
     "deepagents",
     "fastapi",
+    "httpx>=0.28.1",
     "langchain",
     "langchain-openai",
     "langchain-tavily>=0.2.18",

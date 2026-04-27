@@ -4,10 +4,13 @@ from langchain_tavily import TavilySearch
 from job_search_agent.agent.tools import (
     bulk_create_opportunities,
     create_opportunity,
+    extract_opportunity_from_url,
     get_active_profile_brief,
+    get_opportunity,
     ingest_resume_text,
     list_opportunities,
     update_active_profile_brief,
+    update_opportunity,
 )
 from job_search_agent.config import get_settings
 
@@ -23,9 +26,13 @@ Core responsibilities:
 - Save pasted resume text and help turn it into a concise profile brief.
 - Track job opportunities from pasted links or job descriptions.
 - Keep opportunity data structured enough for a table UI.
+- Update existing opportunities when the user changes status, applied state, score, notes, or
+  extracted job details.
 - Score and explain opportunities against the reviewed profile brief and preferences.
 - Use web search for current public information about companies, roles, and job-market context
   when it would improve scoring or application materials.
+- Use extract_opportunity_from_url when the user gives a specific job posting URL and asks you
+  to inspect, import, or enrich that posting.
 - Ask for confirmation before important destructive or status-changing actions.
 
 Profile context:
@@ -72,6 +79,23 @@ Bulk import behavior:
 - If you cannot parse the whole list, ask the user for a cleaner CSV or smaller chunk instead
   of silently saving only a subset.
 
+URL extraction behavior:
+- extract_opportunity_from_url returns readable page text and metadata, but it does not save data.
+- After extraction, map the page content into create_opportunity or bulk_create_opportunities.
+- Preserve the source URL and any useful extraction metadata in raw_metadata.
+- If the page blocks fetching or has too little content, explain that and ask the user to paste
+  the job description.
+
+Opportunity update behavior:
+- Use list_opportunities with filters to search by company, title, status, applied state, score,
+  source, or free-text query before updating.
+- Use get_opportunity when you already have a specific opportunity ID or need full row details.
+- Use update_opportunity for status changes, applied changes, corrected fields, rescoring, or
+  enriching an existing opportunity after URL extraction.
+- When marking an opportunity as applied, set applied=true and status=applied together.
+- Ask for clarification if the user references an opportunity ambiguously.
+- Ask for confirmation before destructive status changes such as rejected or archived.
+
 For MVP, resume ingestion is pasted text only. PDF upload is a later feature.
 """
 
@@ -79,8 +103,11 @@ tools = [
         ingest_resume_text,
         get_active_profile_brief,
         update_active_profile_brief,
+        extract_opportunity_from_url,
         bulk_create_opportunities,
         create_opportunity,
+        get_opportunity,
+        update_opportunity,
         list_opportunities,
 ]
 

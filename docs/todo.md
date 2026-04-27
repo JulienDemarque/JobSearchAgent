@@ -6,11 +6,13 @@
 - Backend code moved into `backend/`.
 - Agent scaffolded with Deep Agents, LangSmith/LangGraph config, OpenAI model config, and optional Tavily search.
 - Domain tables exist for `user_profile` and `opportunity`.
-- Agent can ingest pasted resume text, create opportunities, bulk import opportunities, list opportunities, and retrieve the active profile brief.
+- Agent can ingest pasted resume text, create opportunities, bulk import opportunities, search/list/update opportunities, and retrieve the active profile brief.
+- Agent can fetch a job posting URL, extract readable page text and metadata, then use that output to create or enrich opportunities.
 - Opportunity scoring uses a 25-point rubric with sub-scores stored in `raw_metadata`.
 - Agent Chat UI scaffolded into `ui/`.
 - UI includes a first opportunities table backed by FastAPI and built with TanStack Query/Table.
 - UI desktop panels are resizable, and the opportunities table shows score and applied state.
+- Opportunities table supports search, applied filtering, minimum score filtering, sorting, and compact dates.
 
 ## Next Active Milestone: UI Iteration
 
@@ -19,10 +21,7 @@
 - Add mobile/tablet layout for the opportunities workspace.
 - Add event-driven refresh after agent imports or updates opportunities.
 - Add row details for score reason and raw metadata.
-- Add opportunity URL extraction tool:
-  - Fetch a known job posting URL and extract page content into title, company, description, location, and metadata.
-  - This means reading data at the URL/domain, not just interpreting the URL string.
-  - Tavily can help with research, but page extraction should remain a separate capability.
+- Test URL extraction against real job boards and tune blocked-page/error behavior.
 
 ## Backlog
 
@@ -42,7 +41,6 @@
   - Keep explicit user preferences in `preferences`.
   - Add a user approval flow before setting `reviewed=true`.
 - Status/update tools:
-  - Update status, applied state, notes, score, and metadata.
   - Delete or archive bad imports.
 - Scoring reliability:
   - Keep the main agent responsible for scoring for now.

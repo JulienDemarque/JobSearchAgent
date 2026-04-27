@@ -2,10 +2,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from job_search_agent.api.schemas import OpportunityCreate, OpportunityUpdate, UserProfileUpdate
-from job_search_agent.db.models import Opportunity, UserProfile
+from job_search_agent.db.models import Opportunity, OpportunityStatus, UserProfile
 
 
 def touch(model: Opportunity | UserProfile) -> None:
@@ -77,8 +78,45 @@ def create_opportunities(
     return models
 
 
-def list_opportunities(session: Session) -> list[Opportunity]:
+def list_opportunities(
+    session: Session,
+    *,
+    query: str | None = None,
+    status: OpportunityStatus | None = None,
+    applied: bool | None = None,
+    min_score: int | None = None,
+    max_score: int | None = None,
+    company: str | None = None,
+    source: str | None = None,
+    limit: int | None = None,
+) -> list[Opportunity]:
     statement = select(Opportunity).order_by(Opportunity.updated_at.desc())
+    if query:
+        pattern = f"%{query}%"
+        statement = statement.where(
+            or_(
+                Opportunity.title.ilike(pattern),
+                Opportunity.company.ilike(pattern),
+                Opportunity.location.ilike(pattern),
+                Opportunity.url.ilike(pattern),
+                Opportunity.source.ilike(pattern),
+                Opportunity.description.ilike(pattern),
+            )
+        )
+    if status is not None:
+        statement = statement.where(Opportunity.status == status)
+    if applied is not None:
+        statement = statement.where(Opportunity.applied == applied)
+    if min_score is not None:
+        statement = statement.where(Opportunity.score >= min_score)
+    if max_score is not None:
+        statement = statement.where(Opportunity.score <= max_score)
+    if company:
+        statement = statement.where(Opportunity.company.ilike(f"%{company}%"))
+    if source:
+        statement = statement.where(Opportunity.source.ilike(f"%{source}%"))
+    if limit is not None:
+        statement = statement.limit(limit)
     return list(session.exec(statement).all())
 
 
@@ -97,6 +135,8 @@ def update_opportunity(
             setattr(opportunity, key, value)
         if "applied" in data and data["applied"] and opportunity.applied_at is None:
             opportunity.applied_at = datetime.now(UTC)
+        if "applied" in data and not data["applied"]:
+            opportunity.applied_at = None
         touch(opportunity)
         session.add(opportunity)
         session.commit()
