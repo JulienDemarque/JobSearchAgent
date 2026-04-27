@@ -1,12 +1,19 @@
 .env
+.env.local
 .venv/
 __pycache__/
 *.py[cod]
 .ruff_cache/
+.langgraph_api/
 .pytest_cache/
 .mypy_cache/
 dist/
 build/
 *.egg-info/
 uploads/
+node_modules/
+.next/
+.turbo/
+ui/apps/web/.next/
+ui/apps/web/out/
 

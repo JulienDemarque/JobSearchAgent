@@ -4,40 +4,42 @@ Personal AI job-search agent built around LangChain, LangGraph, LangSmith, FastA
 
 ## Local Setup
 
+Start the backend:
+
 ```bash
+docker compose up -d postgres
+cd backend
 uv sync --extra dev
 cp .env.example .env
-docker compose up -d postgres
 uv run alembic upgrade head
 uv run api
 ```
 
-The API will be available at `http://localhost:18080`.
-
-The default OpenAI model is configured through `OPENAI_MODEL` in `.env`.
-This project currently defaults to `openai:gpt-5.4` for stronger long-context parsing and tool use.
-Set `TAVILY_API_KEY` in `.env` to enable the LangChain Tavily web search tool.
-
-If running Uvicorn directly, pass the port explicitly:
-
-```bash
-uv run uvicorn job_search_agent.api.app:app --reload --port 18080
-```
-
-For LangGraph/LangSmith local agent development, use the `agent` graph in `langgraph.json`:
+Start the agent server:
 
 ```bash
 uv run langgraph dev --port 12024
 ```
 
-Default local ports:
+Start the UI:
 
-- Postgres: `localhost:55432`
-- FastAPI: `http://localhost:18080`
-- LangGraph dev server: `http://localhost:12024`
+```bash
+cd ui
+nvm use
+corepack enable
+cp .env.example .env.local
+pnpm dev --filter=web
+```
+
+Open `http://localhost:13000`.
+
+More details: [Development guide](docs/development.md).
 
 Current planning docs:
 
 - [Architecture plan](docs/architecture-plan.md)
+- [Development guide](docs/development.md)
+- [Folder structure plan](docs/folder-structure-plan.md)
 - [User stories](docs/user-stories.md)
+- [Project checklist](docs/todo.md)
 

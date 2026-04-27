@@ -15,3 +15,4 @@ alwaysApply: true
 - Use FastAPI custom routes only for product/API needs not already covered by Agent Server endpoints.
 - Start with direct LangChain tools exposed through the chosen agent harness. Add MCP when tools need to be exposed to external clients or reused across agent runtimes.
 - For development, LangSmith Studio is enough to chat with and debug the graph. For the product UI, start by customizing Agent Chat UI: keep chat as the command surface and add an opportunities table/artifact view backed by Postgres and agent tools.
+- Keep `docs/todo.md` up to date when completing milestones, changing priorities, adding backlog items, or discovering implementation follow-ups.
