@@ -1,0 +1,16 @@
+---
+description: Backend conventions for Python, FastAPI, LangChain agents, and Postgres
+globs: **/*.py
+alwaysApply: false
+---
+
+# Backend Python Conventions
+
+- Keep domain persistence explicit with SQLAlchemy or SQLModel models and Alembic migrations.
+- Model the `opportunity` table around durable user data: URL, title, company, location, source, description, fit score, status, applied flag, timestamps, and raw extracted metadata.
+- Prefer typed Pydantic schemas at API boundaries, tool boundaries, and any explicit agent state.
+- Keep agent steps and tools small and observable. Name tools, prompts, graph nodes when present, and runs so LangSmith traces are easy to inspect.
+- Do not manually configure LangGraph checkpointers or stores inside graph code intended for LangSmith Deployment; Agent Server injects deployment-managed persistence.
+- For local-only experiments, isolate custom checkpointer setup behind development configuration so it cannot leak into deployed graph exports.
+- Make every tool deterministic at the boundary: validate inputs, return structured results, and avoid hidden database writes unless the tool name clearly implies mutation.
+- Add focused tests for scoring logic, database repositories, tool contracts, and agent control flow before broad integration tests.

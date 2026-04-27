@@ -1,0 +1,17 @@
+---
+description: Product and architecture direction for the job search agent
+alwaysApply: true
+---
+
+# JobSearchAgent Direction
+
+- Build a personal AI job-search assistant that can track opportunities, evaluate fit, search saved jobs, and support applying workflows.
+- Prefer Python, LangChain, Deep Agents when useful, LangGraph runtime capabilities, and LangSmith end to end. Code should be clear enough to act as documentation-quality examples for this stack.
+- Do not default to hand-written LangGraph graphs when a higher-level LangChain agent or Deep Agents harness fits. LangGraph is the runtime/orchestration substrate, not necessarily the application API.
+- Use LangSmith for tracing, debugging, evaluation datasets, online monitoring, and deployment whenever practical.
+- Use Postgres as the source of truth for application data such as opportunities, applications, companies, contacts, notes, scoring, and job links.
+- Design resume/profile context before scoring. For MVP, support pasted resume text in chat; add PDF upload later. Store canonical resume and preferences durably, keep a reviewed compact profile brief in frequent model context, and retrieve full sections only when needed.
+- Keep agent state persistence separate from app domain data. In LangSmith Deployment, Agent Server manages checkpointers and long-term memory stores, backed by Postgres by default.
+- Use FastAPI custom routes only for product/API needs not already covered by Agent Server endpoints.
+- Start with direct LangChain tools exposed through the chosen agent harness. Add MCP when tools need to be exposed to external clients or reused across agent runtimes.
+- For development, LangSmith Studio is enough to chat with and debug the graph. For the product UI, start by customizing Agent Chat UI: keep chat as the command surface and add an opportunities table/artifact view backed by Postgres and agent tools.
