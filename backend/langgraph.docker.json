@@ -1,0 +1,9 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "agent": "./src/job_search_agent/agent/graph.py:graph"
+  },
+  "http": {
+    "app": "./src/job_search_agent/api/app.py:app"
+  }
+}

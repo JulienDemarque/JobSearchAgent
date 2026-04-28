@@ -12,6 +12,7 @@ build/
 *.egg-info/
 uploads/
 node_modules/
+.pnpm-store/
 .next/
 .turbo/
 ui/apps/web/.next/

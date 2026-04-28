@@ -15,6 +15,86 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    working_dir: /app/backend
+    command: sh -lc "uv sync --extra dev && uv run alembic upgrade head"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://job_search_agent:job_search_agent@postgres:5432/job_search_agent
+    volumes:
+      - ./backend:/app/backend
+      - backend_venv:/app/backend/.venv
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend-api:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    working_dir: /app/backend
+    command: >
+      sh -lc "uv sync --extra dev &&
+      uv run uvicorn job_search_agent.api.app:app --host 0.0.0.0 --port 18080 --reload"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://job_search_agent:job_search_agent@postgres:5432/job_search_agent
+    ports:
+      - "${BACKEND_PORT:-18080}:18080"
+    volumes:
+      - ./backend:/app/backend
+      - backend_venv:/app/backend/.venv
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  langgraph:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    working_dir: /app/backend
+    command: >
+      sh -lc "uv sync --extra dev &&
+      uv run langgraph dev --config langgraph.docker.json --host 0.0.0.0 --port 12024 --no-browser"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://job_search_agent:job_search_agent@postgres:5432/job_search_agent
+    ports:
+      - "${LANGGRAPH_PORT:-12024}:12024"
+    volumes:
+      - ./backend:/app/backend
+      - backend_venv:/app/backend/.venv
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  ui:
+    image: node:20.20.2-bookworm-slim
+    working_dir: /app/ui
+    command: >
+      sh -lc "corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter web exec next dev --port 13000 --hostname 0.0.0.0"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:${LANGGRAPH_PORT:-12024}
+      NEXT_PUBLIC_ASSISTANT_ID: agent
+      NEXT_PUBLIC_BACKEND_API_URL: http://localhost:${BACKEND_PORT:-18080}
+    ports:
+      - "${UI_PORT:-13000}:13000"
+    volumes:
+      - ./ui:/app/ui
+      - ui_node_modules:/app/ui/node_modules
+      - ui_next:/app/ui/apps/web/.next
+    depends_on:
+      - backend-api
+      - langgraph
+
 volumes:
   postgres_data:
+  backend_venv:
+  ui_node_modules:
+  ui_next:
 

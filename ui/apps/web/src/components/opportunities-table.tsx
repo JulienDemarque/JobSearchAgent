@@ -8,9 +8,16 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { RefreshCw } from "lucide-react";
-import { useDeferredValue, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import * as Dialog from "@radix-ui/react-dialog";
+import { Eye, RefreshCw, X } from "lucide-react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +28,29 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Opportunity, listOpportunities } from "@/lib/backend-api";
+import {
+  Opportunity,
+  OpportunityStatus,
+  listOpportunities,
+  updateOpportunity,
+} from "@/lib/backend-api";
 import { cn } from "@/lib/utils";
+import { useStreamContext } from "@/providers/Stream";
+
+const OPPORTUNITY_STATUSES: OpportunityStatus[] = [
+  "new",
+  "interested",
+  "applied",
+  "interviewing",
+  "interviewed",
+  "offer",
+  "rejected",
+  "archived",
+];
+
+function formatStatusLabel(status: OpportunityStatus) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -37,6 +65,8 @@ function statusClassName(status: Opportunity["status"]) {
     case "interviewing":
     case "offer":
       return "bg-emerald-50 text-emerald-700 ring-emerald-600/20";
+    case "interviewed":
+      return "bg-violet-50 text-violet-700 ring-violet-600/20";
     case "rejected":
     case "archived":
       return "bg-gray-50 text-gray-600 ring-gray-500/20";
@@ -47,19 +77,73 @@ function statusClassName(status: Opportunity["status"]) {
   }
 }
 
+function MetadataPreview({ metadata }: { metadata: Record<string, unknown> }) {
+  if (!Object.keys(metadata).length) {
+    return <span className="text-muted-foreground">No metadata</span>;
+  }
+
+  return (
+    <pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
+      {JSON.stringify(metadata, null, 2)}
+    </pre>
+  );
+}
+
 export function OpportunitiesTable() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState("");
   const [appliedFilter, setAppliedFilter] = useState<"all" | "yes" | "no">(
     "all",
   );
+  const [statusFilter, setStatusFilter] = useState<"all" | OpportunityStatus>(
+    "all",
+  );
   const [minimumScore, setMinimumScore] = useState("");
+  const [selectedOpportunity, setSelectedOpportunity] =
+    useState<Opportunity | null>(null);
   const deferredSearch = useDeferredValue(search);
+  const stream = useStreamContext();
+  const queryClient = useQueryClient();
+  const wasStreaming = useRef(false);
   const opportunitiesQuery = useQuery({
     queryKey: ["opportunities"],
     queryFn: listOpportunities,
     refetchInterval: 10_000,
   });
+  const updateOpportunityMutation = useMutation({
+    mutationFn: ({
+      opportunity,
+      status,
+    }: {
+      opportunity: Opportunity;
+      status: OpportunityStatus;
+    }) =>
+      updateOpportunity(opportunity.id, {
+        status,
+        ...(status === "applied" ? { applied: true } : {}),
+      }),
+    onSuccess: (updatedOpportunity) => {
+      queryClient.setQueryData<Opportunity[]>(["opportunities"], (current) =>
+        current?.map((opportunity) =>
+          opportunity.id === updatedOpportunity.id
+            ? updatedOpportunity
+            : opportunity,
+        ),
+      );
+      setSelectedOpportunity(updatedOpportunity);
+    },
+  });
+
+  useEffect(() => {
+    if (stream.isLoading) {
+      wasStreaming.current = true;
+      return;
+    }
+
+    if (!wasStreaming.current) return;
+    wasStreaming.current = false;
+    void queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+  }, [queryClient, stream.isLoading]);
 
   const columns = useMemo<ColumnDef<Opportunity>[]>(
     () => [
@@ -67,20 +151,30 @@ export function OpportunitiesTable() {
         accessorKey: "title",
         header: "Role",
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium text-foreground">
-              {row.original.title || "Untitled role"}
+          <div className="flex min-w-0 items-start gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedOpportunity(row.original)}
+              className="mt-0.5 cursor-pointer rounded-sm text-muted-foreground hover:text-foreground"
+              aria-label="Open opportunity details"
+            >
+              <Eye className="size-4" />
+            </button>
+            <div className="min-w-0">
+              <div className="truncate font-medium text-foreground">
+                {row.original.title || "Untitled role"}
+              </div>
+              {row.original.url ? (
+                <a
+                  href={row.original.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block truncate text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {row.original.url}
+                </a>
+              ) : null}
             </div>
-            {row.original.url ? (
-              <a
-                href={row.original.url}
-                target="_blank"
-                rel="noreferrer"
-                className="block truncate text-xs text-muted-foreground hover:text-foreground"
-              >
-                {row.original.url}
-              </a>
-            ) : null}
           </div>
         ),
       },
@@ -149,6 +243,9 @@ export function OpportunitiesTable() {
     return (opportunitiesQuery.data ?? []).filter((opportunity) => {
       if (appliedFilter === "yes" && !opportunity.applied) return false;
       if (appliedFilter === "no" && opportunity.applied) return false;
+      if (statusFilter !== "all" && opportunity.status !== statusFilter) {
+        return false;
+      }
       if (
         minimumScoreValue !== null &&
         Number.isFinite(minimumScoreValue) &&
@@ -169,7 +266,13 @@ export function OpportunitiesTable() {
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(normalizedSearch));
     });
-  }, [appliedFilter, deferredSearch, minimumScore, opportunitiesQuery.data]);
+  }, [
+    appliedFilter,
+    deferredSearch,
+    minimumScore,
+    opportunitiesQuery.data,
+    statusFilter,
+  ]);
 
   const table = useReactTable({
     data: filteredOpportunities,
@@ -189,7 +292,8 @@ export function OpportunitiesTable() {
           <div>
             <CardTitle>Opportunities</CardTitle>
             <CardDescription>
-              Jobs tracked by the agent, refreshed every 10 seconds.
+              Jobs tracked by the agent. Refreshes after chat runs and every 10
+              seconds.
             </CardDescription>
           </div>
           <Button
@@ -207,7 +311,7 @@ export function OpportunitiesTable() {
             Refresh
           </Button>
         </div>
-        <div className="grid gap-2 pt-3 md:grid-cols-[minmax(0,1fr)_120px_120px]">
+        <div className="grid gap-2 pt-3 md:grid-cols-[minmax(0,1fr)_120px_140px_120px]">
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -224,6 +328,20 @@ export function OpportunitiesTable() {
             <option value="all">All applied</option>
             <option value="yes">Applied</option>
             <option value="no">Not applied</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as "all" | OpportunityStatus)
+            }
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+          >
+            <option value="all">All statuses</option>
+            {OPPORTUNITY_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {formatStatusLabel(status)}
+              </option>
+            ))}
           </select>
           <Input
             type="number"
@@ -302,6 +420,143 @@ export function OpportunitiesTable() {
           </table>
         )}
       </CardContent>
+      <Dialog.Root
+        open={selectedOpportunity !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedOpportunity(null);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[min(900px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border bg-background shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
+              <div className="min-w-0">
+                <Dialog.Title className="truncate text-lg font-semibold">
+                  {selectedOpportunity?.title || "Untitled role"}
+                </Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+                  {[selectedOpportunity?.company, selectedOpportunity?.location]
+                    .filter(Boolean)
+                    .join(" · ") || "Opportunity details"}
+                </Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <Button variant="ghost" size="icon" aria-label="Close details">
+                  <X className="size-4" />
+                </Button>
+              </Dialog.Close>
+            </div>
+            {selectedOpportunity ? (
+              <div className="min-h-0 overflow-auto p-5">
+                <div className="mb-5 flex flex-wrap gap-2 text-sm">
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset",
+                      statusClassName(selectedOpportunity.status),
+                    )}
+                  >
+                    {selectedOpportunity.status}
+                  </span>
+                  <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+                    {selectedOpportunity.score == null
+                      ? "No score"
+                      : `${selectedOpportunity.score}/25`}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset",
+                      selectedOpportunity.applied
+                        ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
+                        : "bg-gray-50 text-gray-600 ring-gray-500/20",
+                    )}
+                  >
+                    {selectedOpportunity.applied ? "Applied" : "Not applied"}
+                  </span>
+                </div>
+
+                <div className="mb-5">
+                  <h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                    Quick status
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {OPPORTUNITY_STATUSES.map((status) => (
+                      <Button
+                        key={status}
+                        type="button"
+                        variant={
+                          selectedOpportunity.status === status
+                            ? "default"
+                            : "outline"
+                        }
+                        size="sm"
+                        disabled={
+                          updateOpportunityMutation.isPending ||
+                          selectedOpportunity.status === status
+                        }
+                        onClick={() =>
+                          updateOpportunityMutation.mutate({
+                            opportunity: selectedOpportunity,
+                            status,
+                          })
+                        }
+                      >
+                        {formatStatusLabel(status)}
+                      </Button>
+                    ))}
+                  </div>
+                  {updateOpportunityMutation.isError ? (
+                    <p className="mt-2 text-sm text-destructive">
+                      {(updateOpportunityMutation.error as Error).message}
+                    </p>
+                  ) : null}
+                </div>
+
+                {selectedOpportunity.url ? (
+                  <a
+                    href={selectedOpportunity.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mb-5 block truncate text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    {selectedOpportunity.url}
+                  </a>
+                ) : null}
+
+                <div className="grid gap-5 text-sm lg:grid-cols-2">
+                  <section className="space-y-4">
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase text-muted-foreground">
+                        Score reason
+                      </h4>
+                      <p className="mt-1 whitespace-pre-wrap text-foreground">
+                        {selectedOpportunity.score_reason ||
+                          "No score reason yet."}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase text-muted-foreground">
+                        Description
+                      </h4>
+                      <p className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap text-muted-foreground">
+                        {selectedOpportunity.description ||
+                          "No description yet."}
+                      </p>
+                    </div>
+                  </section>
+                  <section>
+                    <h4 className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                      Raw metadata
+                    </h4>
+                    <MetadataPreview
+                      metadata={selectedOpportunity.raw_metadata ?? {}}
+                    />
+                  </section>
+                </div>
+              </div>
+            ) : null}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </Card>
   );
 }

@@ -1,5 +1,41 @@
 # Development Guide
 
+## Full Docker Compose Stack
+
+For day-to-day local use, start everything from the repo root:
+
+```bash
+cp backend/.env.example backend/.env
+docker compose up
+```
+
+This starts:
+
+- Postgres on `localhost:55432`
+- FastAPI on `http://localhost:18080`
+- LangGraph dev server on `http://localhost:12024`
+- UI on `http://localhost:13000`
+
+Compose runs Alembic migrations before starting the API and LangGraph services.
+LangSmith stays external; set `LANGSMITH_API_KEY`, `LANGSMITH_TRACING`,
+`LANGSMITH_PROJECT`, `OPENAI_API_KEY`, and `TAVILY_API_KEY` in `backend/.env`
+when you need them.
+
+The Compose LangGraph service uses `backend/langgraph.docker.json` so container
+environment variables take precedence over the local `backend/.env` database URL.
+
+To stop the stack:
+
+```bash
+docker compose down
+```
+
+If one of the default ports is already in use, override the host port:
+
+```bash
+UI_PORT=13001 docker compose up
+```
+
 ## Backend
 
 Run shared infrastructure from the repo root:
@@ -69,6 +105,7 @@ Backend:
 cd backend
 uv run ruff check .
 uv run python -m compileall src alembic
+uv run pytest
 ```
 
 UI:

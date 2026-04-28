@@ -18,6 +18,7 @@ class OpportunityStatus(StrEnum):
     rejected = "rejected"
     applied = "applied"
     interviewing = "interviewing"
+    interviewed = "interviewed"
     offer = "offer"
     archived = "archived"
 

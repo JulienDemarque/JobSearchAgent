@@ -4,6 +4,7 @@ export type OpportunityStatus =
   | "rejected"
   | "applied"
   | "interviewing"
+  | "interviewed"
   | "offer"
   | "archived";
 
@@ -26,6 +27,20 @@ export type Opportunity = {
   updated_at: string;
 };
 
+export type OpportunityUpdate = Partial<{
+  url: string | null;
+  source: string | null;
+  title: string | null;
+  company: string | null;
+  location: string | null;
+  description: string;
+  score: number | null;
+  score_reason: string | null;
+  status: OpportunityStatus;
+  applied: boolean;
+  raw_metadata: Record<string, unknown>;
+}>;
+
 const DEFAULT_BACKEND_API_URL = "http://localhost:18080";
 
 export function getBackendApiUrl() {
@@ -44,6 +59,29 @@ export async function listOpportunities(): Promise<Opportunity[]> {
 
   if (!response.ok) {
     throw new Error(`Failed to load opportunities: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function updateOpportunity(
+  opportunityId: string,
+  payload: OpportunityUpdate,
+): Promise<Opportunity> {
+  const response = await fetch(
+    `${getBackendApiUrl()}/opportunities/${opportunityId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to update opportunity: ${response.status}`);
   }
 
   return response.json();

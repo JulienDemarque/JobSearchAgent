@@ -33,6 +33,7 @@ opportunity_status = postgresql.ENUM(
     "rejected",
     "applied",
     "interviewing",
+    "interviewed",
     "offer",
     "archived",
     name="opportunitystatus",
